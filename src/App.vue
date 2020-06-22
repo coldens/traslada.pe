@@ -138,7 +138,7 @@ export default {
       if (!address) {
         return this.markers.a.setMap(null);
       }
-  
+
       this.geocodePlaceId(address.place_id).then(location => {
         if (this.markers.a) this.markers.a.setMap(null);
 
