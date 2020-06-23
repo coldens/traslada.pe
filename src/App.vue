@@ -21,7 +21,7 @@
                       label='Piso/Departamento/Oficina'
                       v-model='form.client.house'
                       prepend-icon='mdi-home'
-                      type='text' :rules="[rules.required]"
+                      type='text'
                     )
                     Address(
                       label='Dirección de entrega'
@@ -40,7 +40,7 @@
                       label='Piso/Departamento/Oficina'
                       v-model='form.receiver.house'
                       prepend-icon='mdi-home'
-                      type='text' :rules="[rules.required]"
+                      type='text'
                     )
                     v-textarea(
                       label='Descripción del producto a envíar'
