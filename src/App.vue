@@ -11,10 +11,17 @@
                 v-card-text
                   v-form
                     Address(
+                      v-if="google"
                       label='Dirección de recojo'
                       @changed="setInitialAddress($event)"
                       :rules="[rules.required]"
                       :google="google"
+                    )
+                    v-text-field(
+                      label='Piso/Departamento/Oficina'
+                      v-model='form.client.house'
+                      prepend-icon='mdi-home'
+                      type='text' :rules="[rules.required]"
                     )
                     Address(
                       label='Dirección de entrega'
@@ -23,8 +30,24 @@
                       :google="google"
                     )
                     v-text-field(
-                      label='Descripción del producto a envíar' v-model='form.product' prepend-icon='mdi-account'
+                      label='Distancia'
+                      v-model="distanceKm"
+                      prepend-icon='mdi-earth'
+                      type='text'
+                      :disabled="true"
+                    )
+                    v-text-field(
+                      label='Piso/Departamento/Oficina'
+                      v-model='form.receiver.house'
+                      prepend-icon='mdi-home'
                       type='text' :rules="[rules.required]"
+                    )
+                    v-textarea(
+                      label='Descripción del producto a envíar'
+                      v-model.trim='form.product'
+                      prepend-icon='mdi-bag-carry-on'
+                      type='text'
+                      :rules="[rules.required]"
                     )
             v-col(cols='12')
               GmapMap(
@@ -96,21 +119,26 @@ export default {
   },
   data() {
     return {
+      location_a: null,
+      location_b: null,
+      distance: 0,
       form: {
-        initialAddress: null,
-        endAddress: null,
         product: '',
         client: {
           name: '',
           lastname: '',
           email: '',
-          phone: ''
+          phone: '',
+          address: '',
+          house: ''
         },
         receiver: {
           name: '',
           lastname: '',
           email: '',
-          phone: ''
+          phone: '',
+          address: '',
+          house: ''
         }
       },
       isLoading: false,
@@ -120,7 +148,7 @@ export default {
       center: '',
       rules: {
         required: value => !!value || 'Requerido.',
-        counter: value => value.length <= 20 || 'Max 20 characters',
+        counter: value => value.length <= 20 || 'Máximo 20 caracteres',
         email: value => {
           const pattern = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
           return pattern.test(value) || 'Correo Invalido.';
@@ -129,18 +157,65 @@ export default {
     };
   },
   computed: {
-    google: gmapApi
+    google: gmapApi,
+    distanceKm() {
+      return this.distance.toFixed(2) + ' km';
+    }
   },
   methods: {
+    haversine_distance(mk1, mk2) {
+      let R = 6371; // Radius of the Earth in km
+      let rlat1 = mk1.lat() * (Math.PI / 180); // Convert degrees to radians
+      let rlat2 = mk2.lat() * (Math.PI / 180); // Convert degrees to radians
+      let difflat = rlat2 - rlat1; // Radian difference (latitudes)
+      let difflon = (mk2.lng() - mk1.lng()) * (Math.PI / 180); // Radian difference (longitudes)
+
+      let d =
+        2 *
+        R *
+        Math.asin(
+          Math.sqrt(
+            Math.sin(difflat / 2) * Math.sin(difflat / 2) +
+              Math.cos(rlat1) *
+                Math.cos(rlat2) *
+                Math.sin(difflon / 2) *
+                Math.sin(difflon / 2)
+          )
+        );
+      return d;
+    },
+    flight() {
+      if (!this.location_a || !this.location_b) return null;
+
+      const locations = [this.location_a, this.location_b];
+
+      const flightPath = new this.google.maps.Polyline({
+        path: locations,
+        geodesic: true,
+        strokeColor: '#FF0000',
+        strokeOpacity: 1.0,
+        strokeWeight: 2
+      });
+
+      this.$refs.mapRef.$mapPromise.then(map => {
+        flightPath.setMap(map);
+      });
+
+      this.distance = this.haversine_distance(this.location_a, this.location_b);
+
+      return null;
+    },
     setInitialAddress(address) {
-      this.form.initialAddress = address;
+      this.form.client.address = address.text;
 
       if (!address) {
         return this.markers.a.setMap(null);
       }
 
-      this.geocodePlaceId(address.place_id).then(location => {
+      this.geocodePlaceId(address.object.place_id).then(location => {
         if (this.markers.a) this.markers.a.setMap(null);
+
+        this.location_a = location;
 
         this.$refs.mapRef.$mapPromise.then(map => {
           let marker = new this.google.maps.Marker({
@@ -155,14 +230,16 @@ export default {
       });
     },
     setEndAddress(address) {
-      this.form.endAddress = address;
+      this.form.receiver.address = address;
 
       if (!address) {
         return this.markers.b.setMap(null);
       }
 
-      this.geocodePlaceId(address.place_id).then(location => {
+      this.geocodePlaceId(address.object.place_id).then(location => {
         if (this.markers.b) this.markers.b.setMap(null);
+
+        this.location_b = location;
 
         this.$refs.mapRef.$mapPromise.then(map => {
           let marker = new this.google.maps.Marker({
@@ -195,6 +272,14 @@ export default {
     this.$refs.mapRef.$mapPromise.then(map => {
       map.panTo({ lat: -12.0465834, lng: -77.0481994 });
     });
+  },
+  watch: {
+    location_a() {
+      this.flight();
+    },
+    location_b() {
+      this.flight();
+    }
   }
 };
 </script>

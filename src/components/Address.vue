@@ -1,17 +1,13 @@
 <template lang="pug">
-  v-autocomplete(
-    ref="address_a"
+  v-text-field(
+    ref="address_input"
     :label="label"
     v-model="address"
-    @change="changed"
-    :items="locations"
-    :loading="isLoading"
-    :search-input.sync="search"
+    @focus="searchMapService"
     item-text="description"
     item-value="description"
     prepend-icon="mdi-crosshairs-gps"
     :rules="rules"
-    :return-object="true"
   )
 </template>
 
@@ -20,7 +16,7 @@ export default {
   props: {
     google: Object,
     rules: Array,
-    label: String,
+    label: String
   },
   data() {
     return {
@@ -28,7 +24,8 @@ export default {
       isLoading: false,
       predictions: [],
       address: null,
-    }
+      addressObject: {}
+    };
   },
   computed: {
     locations() {
@@ -38,12 +35,47 @@ export default {
     }
   },
   methods: {
-    searchMapService(input, callback) {
-      let service = new this.google.maps.places.AutocompleteService();
-      service.getQueryPredictions({ input }, callback);
+    searchMapService() {
+      const elem = this.$refs.address_input.$el.querySelector('input');
+      const autocomplete = new this.google.maps.places.Autocomplete(elem, {
+        types: ['geocode'],
+        fields: ['ALL']
+      });
+
+      autocomplete.setFields(['address_component']);
+
+      autocomplete.addListener('place_changed', () => {
+        var componentForm = {
+          street_number: 'short_name',
+          route: 'long_name',
+          locality: 'long_name',
+          administrative_area_level_1: 'short_name',
+          country: 'long_name',
+          postal_code: 'short_name'
+        };
+
+        const place = autocomplete.getPlace();
+        this.addressObject.place_id = place.place_id;
+  
+        for (var i = 0; i < place.address_components.length; i++) {
+          var addressType = place.address_components[i].types[0];
+
+          if (componentForm[addressType]) {
+            this.addressObject[addressType] =
+              place.address_components[i][componentForm[addressType]];
+          }
+        }
+
+        this.address = place.formatted_address;
+
+        this.changed();
+      });
     },
     changed() {
-      this.$emit('changed', this.address);
+      this.$emit('changed', {
+        text: this.address,
+        object: this.addressObject,
+      });
     }
   },
   watch: {
@@ -67,5 +99,5 @@ export default {
       this.searchMapService(val, displaySuggestions);
     }
   }
-}
+};
 </script>
