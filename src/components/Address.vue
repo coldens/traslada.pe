@@ -4,16 +4,20 @@
     :label="label"
     v-model="address"
     @focus="searchMapService"
-    item-text="description"
-    item-value="description"
     prepend-icon="mdi-crosshairs-gps"
     :rules="rules"
+    :error="!location"
+    :error-messages="!location ? 'Debe seleccionar una ubicación valida.' : ''"
   )
 </template>
 
 <script>
 export default {
   props: {
+    location: {
+      type: Object,
+      required: false
+    },
     google: Object,
     rules: Array,
     label: String

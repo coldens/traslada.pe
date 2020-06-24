@@ -3,19 +3,27 @@
     v-main
       v-container.fill-height(fluid='')
         v-row(align='start' justify='center' )
+          v-dialog(v-model='loading' hide-overlay='' persistent='' width='300')
+            v-card(color='primary' dark='')
+              v-card-text
+                | Procesando por favor espere...
+                v-progress-linear.mb-0(indeterminate='' color='white')
+
           v-col(cols='12' sm='4' md='6')
             v-col(cols='12' class="pt-0")
               v-card.elevation-12
                 v-toolbar(color='primary' dark='' flat='')
-                  v-toolbar-title Datos de envio
+                  v-toolbar-title Datos de envío
                 v-card-text
-                  v-form
+                  v-form(autocomplete="chrome-off" @submit.prevent="" v-model="valid_address")
                     Address(
+                      ref="location_a"
                       v-if="google"
                       label='Dirección de recojo'
                       @changed="setInitialAddress($event)"
                       :rules="[rules.required]"
                       :google="google"
+                      :location="location_a"
                     )
                     v-text-field(
                       label='Piso/Departamento/Oficina'
@@ -24,17 +32,12 @@
                       type='text'
                     )
                     Address(
+                      ref="location_b"
                       label='Dirección de entrega'
                       @changed="setEndAddress($event)"
                       :rules="[rules.required]"
                       :google="google"
-                    )
-                    v-text-field(
-                      label='Distancia'
-                      v-model="distanceKm"
-                      prepend-icon='mdi-earth'
-                      type='text'
-                      :disabled="true"
+                      :location="location_b"
                     )
                     v-text-field(
                       label='Piso/Departamento/Oficina'
@@ -64,7 +67,7 @@
                 v-toolbar(color='primary' dark='' flat='')
                   v-toolbar-title Datos del remitente
                 v-card-text
-                  v-form
+                  v-form(autocomplete="chrome-off" @submit.prevent="" v-model="valid_client")
                     v-text-field(
                       label='Nombre' v-model='form.client.name' prepend-icon='mdi-account'
                       type='text' :rules="[rules.required]"
@@ -78,8 +81,10 @@
                       type='email' :rules="[rules.required, rules.email]"
                     )
                     v-text-field(
-                      label='Telefono' v-model='form.client.phone' prepend-icon='mdi-phone'
+                      label='Telefono' v-model='form.client.phone'
+                      prepend-icon='mdi-phone'
                       type='text'
+                      :rules="[rules.required]"
                     )
 
 
@@ -88,7 +93,7 @@
                 v-toolbar(color='primary' dark='' flat='')
                   v-toolbar-title Datos del receptor
                 v-card-text
-                  v-form
+                  v-form(autocomplete="chrome-off" @submit.prevent="" v-model="valid_receiver")
                     v-text-field(
                       label='Nombre' v-model='form.receiver.name' prepend-icon='mdi-account'
                       type='text' :rules="[rules.required]"
@@ -102,15 +107,40 @@
                       type='email' :rules="[rules.required, rules.email]"
                     )
                     v-text-field(
-                      label='Telefono' v-model='form.receiver.phone' prepend-icon='mdi-phone'
+                      label='Telefono' v-model='form.receiver.phone'
+                      prepend-icon='mdi-phone'
                       type='text'
+                      :rules="[rules.required]"
                     )
+
+            v-col(cols='12')
+              v-card.elevation-12
+                v-toolbar(color='primary' dark='' flat='')
+                  v-toolbar-title Haz tu envío
+                v-card-text
+                  v-text-field(
+                    label='Distancia'
+                    v-model="distanceKm"
+                    prepend-icon='mdi-earth'
+                    type='text'
+                    :disabled="true"
+                  )
+                  v-text-field(
+                    label='Total'
+                    v-model="totalSoles"
+                    prepend-icon='mdi-earth'
+                    type='text'
+                    :disabled="true"
+                  )
+                  v-btn(block color="primary" dark :disabled="loading" @click="goToSafe") Envíar
 
 </template>
 
 <script>
 import { gmapApi } from 'vue2-google-maps';
 import Address from './components/Address.vue';
+import axios from 'axios';
+import qs from 'qs';
 
 export default {
   components: { Address },
@@ -119,6 +149,10 @@ export default {
   },
   data() {
     return {
+      loading: false,
+      valid_address: false,
+      valid_client: false,
+      valid_receiver: false,
       location_a: null,
       location_b: null,
       distance: 0,
@@ -152,6 +186,16 @@ export default {
         email: value => {
           const pattern = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
           return pattern.test(value) || 'Correo Invalido.';
+        },
+        initialMap: () => {
+          return this.location_a
+            ? true
+            : 'Debe seleccionar una ubicación valida.';
+        },
+        endMap: () => {
+          return this.location_b
+            ? true
+            : 'Debe seleccionar una ubicación valida.';
         }
       }
     };
@@ -160,6 +204,22 @@ export default {
     google: gmapApi,
     distanceKm() {
       return this.distance.toFixed(2) + ' km';
+    },
+    total() {
+      const distance = parseFloat(this.distance.toFixed(2));
+      let total = 10;
+
+      if (distance >= 7 && distance <= 25) {
+        total = distance * 1.5;
+      }
+      if (distance > 25) {
+        total = distance * 1.3;
+      }
+
+      return total;
+    },
+    totalSoles() {
+      return 'S/ ' + this.total.toFixed(2);
     }
   },
   methods: {
@@ -265,6 +325,67 @@ export default {
           }
         });
       });
+    },
+    goToSafe() {
+      if (this.loading) {
+        return;
+      }
+
+      if (!this.valid_address) {
+        return alert('Por favor, completa los Datos de envío');
+      }
+      if (!this.valid_client) {
+        return alert('Por favor, completa los Datos del remitente');
+      }
+      if (!this.valid_receiver) {
+        return alert('Por favor, completa los Datos del receptor');
+      }
+
+      if (!confirm('Confirma si estas seguro de hacer este envío')) {
+        return;
+      }
+
+      this.loading = true;
+      const data = {
+        client_name: this.form.client.name,
+        client_lastname: this.form.client.lastname,
+        client_email: this.form.client.email,
+        client_phone: this.form.client.phone,
+        client_address: this.$refs.location_a.address,
+        client_house: this.form.client.house,
+        client_coords: `${this.location_a.lat()},${this.location_a.lng()}`,
+        receiver_name: this.form.receiver.name,
+        receiver_lastname: this.form.receiver.lastname,
+        receiver_email: this.form.receiver.email,
+        receiver_phone: this.form.receiver.phone,
+        receiver_address: this.$refs.location_b.address,
+        receiver_house: this.form.receiver.house,
+        receiver_coords: `${this.location_b.lat()},${this.location_b.lng()}`,
+        product: this.form.product,
+        distance: this.distance
+      };
+
+      axios
+        .post(
+          'https://script.google.com/macros/s/AKfycbwHbVXPhbzI_xoW15_-6QWuYWeb0dWg5SNkOA4clv0nHY4ACjs/exec',
+          qs.stringify(data),
+          {
+            headers: {
+              'content-type': 'application/x-www-form-urlencoded;charset=utf-8'
+            }
+          }
+        )
+        .then(() => {
+          this.loading = false;
+          alert('Hemos recibido tu solicitud.');
+          location.reload();
+        })
+        .catch(() => {
+          alert('Oh no, hubo un error, intenta nuevamente.');
+        })
+        .finally(() => {
+          this.loading = false;
+        });
     }
   },
   mounted() {
