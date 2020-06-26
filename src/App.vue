@@ -156,6 +156,7 @@ export default {
       location_a: null,
       location_b: null,
       distance: 0,
+      duration: 0,
       form: {
         product: '',
         client: {
@@ -247,21 +248,33 @@ export default {
     flight() {
       if (!this.location_a || !this.location_b) return null;
 
-      const locations = [this.location_a, this.location_b];
+      const distanceMatrixService = new this.google.maps.DistanceMatrixService();
+      let distance = 0,
+        duration = 0;
 
-      const flightPath = new this.google.maps.Polyline({
-        path: locations,
-        geodesic: true,
-        strokeColor: '#FF0000',
-        strokeOpacity: 1.0,
-        strokeWeight: 2
-      });
+      distanceMatrixService.getDistanceMatrix(
+        {
+          origins: [this.location_a],
+          destinations: [this.location_b],
+          travelMode: 'DRIVING',
+          unitSystem: this.google.maps.UnitSystem.METRIC,
+          avoidHighways: true,
+          avoidTolls: true
+        },
+        (response, status) => {
+          if (status == 'OK') {
+            response.rows.forEach(row => {
+              row.elements.forEach(elem => {
+                distance += elem.distance.value;
+                duration += elem.duration.value;
+              })
+            });
+          }
 
-      this.$refs.mapRef.$mapPromise.then(map => {
-        flightPath.setMap(map);
-      });
-
-      this.distance = this.haversine_distance(this.location_a, this.location_b);
+          this.distance = distance > 0 ? distance / 1000 : 0;
+          this.duration = duration;
+        }
+      );
 
       return null;
     },
