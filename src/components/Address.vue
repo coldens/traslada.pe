@@ -28,7 +28,60 @@ export default {
       isLoading: false,
       predictions: [],
       address: null,
-      addressObject: {}
+      addressObject: {},
+      validDistricts: [
+        'ancón',
+        'ate',
+        'barranco',
+        'bellavista',
+        'breña',
+        'callao',
+        'carabayllo',
+        'carmen de la legua',
+        'chaclacayo',
+        'chorrillos',
+        'cercado de lima',
+        'cieneguilla',
+        'comas',
+        'el agustino',
+        'independencia',
+        'jesús maría',
+        'la molina',
+        'la perla',
+        'la punta',
+        'la victoria',
+        'lima',
+        'lince',
+        'los olivos',
+        'lurigancho',
+        'lurín',
+        'magdalena del mar',
+        'mi perú',
+        'miraflores',
+        'pachacámac',
+        'pucusana',
+        'pueblo libre',
+        'puente piedra',
+        'punta hermosa',
+        'punta negra',
+        'rímac',
+        'san bartolo',
+        'san borja',
+        'san isidro',
+        'san juan de lurigancho',
+        'san juan de miraflores',
+        'san luis',
+        'san martín de porres',
+        'san miguel',
+        'santa anita',
+        'santa maría del mar',
+        'santa rosa',
+        'santiago de surco',
+        'surquillo',
+        'ventanilla',
+        'villa el salvador',
+        'villa maría del triunfo',
+      ]
     };
   },
   computed: {
@@ -59,17 +112,28 @@ export default {
         };
 
         const place = autocomplete.getPlace();
-        this.addressObject.place_id = place.place_id;
-  
+        const addressObject = {};
+        addressObject.place_id = place.place_id;
+
         for (var i = 0; i < place.address_components.length; i++) {
           var addressType = place.address_components[i].types[0];
 
           if (componentForm[addressType]) {
-            this.addressObject[addressType] =
+            addressObject[addressType] =
               place.address_components[i][componentForm[addressType]];
           }
         }
 
+        const district = addressObject.locality.toLowerCase();
+
+        if (!this.validDistricts.includes(district)) {
+          this.address = '';
+          return alert(
+            'Error: la dirección no pertenece a un distrito valido.'
+          );
+        }
+
+        this.addressObject = addressObject;
         this.address = place.formatted_address;
 
         this.changed();
@@ -78,7 +142,7 @@ export default {
     changed() {
       this.$emit('changed', {
         text: this.address,
-        object: this.addressObject,
+        object: this.addressObject
       });
     }
   },
